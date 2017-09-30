@@ -7,6 +7,7 @@ import tensorflow                as tf
 import tensorflow.contrib.layers as layers
 from collections import namedtuple
 from dqn_utils import *
+import pickle
 
 OptimizerSpec = namedtuple("OptimizerSpec", ["constructor", "kwargs", "lr_schedule"])
 
@@ -131,6 +132,28 @@ def learn(env,
 
     ######
 
+    t_steps = []
+    mean_rewards = []
+    best_means = []
+    episode_log = []
+    explorations = []
+    learning_rates = []
+
+    # current q value
+    current_q_func = q_func(obs_t_float, num_actions, scope='current_q_func', reuse=False) 
+    target_q_func = q_func(obs_tp1_float, num_actions, scope='target_q_func', reuse=False)
+    q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='current_q_func')
+    target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
+
+    # one hot tensor of actions
+    act_t = tf.one_hot(act_t_ph, depth=num_actions, dtype=tf.float32, name="one_hot_action")
+
+    q_act_t = tf.reduce_sum(act_t * current_q_func, axis=1)
+    current_q_value = rew_t_ph + (1 - done_mask_ph) * gamma * tf.reduce_max(target_q_func, reduction_indices=[1])
+
+    total_error = tf.losses.mean_squared_error(current_q_value, q_act_t)
+    
+
     # construct optimization op (with gradient clipping)
     learning_rate = tf.placeholder(tf.float32, (), name="learning_rate")
     optimizer = optimizer_spec.constructor(learning_rate=learning_rate, **optimizer_spec.kwargs)
@@ -156,6 +179,7 @@ def learn(env,
     best_mean_episode_reward = -float('inf')
     last_obs = env.reset()
     LOG_EVERY_N_STEPS = 10000
+    SAVE_EVERY_N_STEPS = 200000
 
     for t in itertools.count():
         ### 1. Check stopping criterion
@@ -195,6 +219,31 @@ def learn(env,
         #####
         
         # YOUR CODE HERE
+        # store observation into replay buffer
+        frame_index = replay_buffer.store_frame(last_obs)
+
+        # choose next action
+        if t == 0:
+            chosen_act = env.action_space.sample()
+            reward, done = 0, False
+
+        epsilon = exploration.value(t)
+
+        if not model_initialized or random.random() < epsilon:
+            # randomly samples an action if model not initialized or in exploration
+            chosen_act = env.action_space.sample()
+        else:
+            # otherwise choose the best action according to Q value
+            recent_obs = replay_buffer.encode_recent_observation()
+            q_values = session.run(current_q_func, {obs_t_ph: recent_obs[None, :]})
+            chosen_act = np.argmax(q_values)
+
+        # step one step in simulator
+        last_obs, reward, done, info = env.step(chosen_act)
+        replay_buffer.store_effect(frame_index, chosen_act, reward, done)
+
+        if done:
+            last_obs, done = env.reset(), False
 
         #####
 
@@ -245,6 +294,29 @@ def learn(env,
             #####
             
             # YOUR CODE HERE
+            obs_t_batch, act_batch, rew_batch, obs_tp1_batch, done_mask = \
+                replay_buffer.sample(batch_size)
+
+            if not model_initialized:
+                initialize_interdependent_variables(session, tf.global_variables(), {
+                   obs_t_ph: obs_t_batch,
+                   obs_tp1_ph: obs_tp1_batch,
+                })
+                model_initialized = True
+
+            session.run(
+                train_fn,
+                feed_dict = {
+                    obs_t_ph: obs_t_batch,
+                    act_t_ph: act_batch,
+                    rew_t_ph: rew_batch,
+                    obs_tp1_ph: obs_tp1_batch,
+                    done_mask_ph: done_mask,
+                    learning_rate: optimizer_spec.lr_schedule.value(t),
+                })
+
+            if t % target_update_freq == 0:
+                session.run(update_target_fn)
 
             #####
 
@@ -256,9 +328,24 @@ def learn(env,
             best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
         if t % LOG_EVERY_N_STEPS == 0 and model_initialized:
             print("Timestep %d" % (t,))
+            t_steps.append(t)
             print("mean reward (100 episodes) %f" % mean_episode_reward)
+            mean_rewards.append(mean_episode_reward)
             print("best mean reward %f" % best_mean_episode_reward)
+            best_means.append(best_mean_episode_reward)
             print("episodes %d" % len(episode_rewards))
+            episode_log.append(episode_rewards)
             print("exploration %f" % exploration.value(t))
+            explorations.append(exploration.value(t))
             print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
+            learning_rates.append(optimizer_spec.lr_schedule.value(t))
             sys.stdout.flush()
+        if t % SAVE_EVERY_N_STEPS == 0 and model_initialized:
+            print mean_rewards
+            print best_means
+            training_log = ({'t_log': t_steps, 'mean_reward_log': mean_rewards, 'best_mean_log': best_means, 'episodes_log': episode_log,
+                'exploration_log': explorations, 'learning_rate_log': learning_rates})
+            output_file_name = 'atari'+'_' + str(t) + '_data.pkl'
+            with open(output_file_name, 'wb') as f:
+                pickle.dump(training_log, f)
+
