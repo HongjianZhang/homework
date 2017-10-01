@@ -42,7 +42,7 @@ def atari_learn(env,
                                     ],
                                     outside_value=5e-5 * lr_multiplier)
     optimizer = dqn.OptimizerSpec(
-        constructor=tf.train.AdamOptimizer,
+        constructor=tf.train.MomentumOptimizer,
         kwargs=dict(epsilon=1e-4),
         lr_schedule=lr_schedule
     )
@@ -126,7 +126,9 @@ def main():
     # Run training
     seed = 0 # Use a seed of zero (you may want to randomize the seed!)
     env = get_env(task, seed)
-    session = get_session()
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+    session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+    # session = get_session()
     atari_learn(env, session, num_timesteps=task.max_timesteps)
 
 if __name__ == "__main__":
