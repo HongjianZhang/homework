@@ -42,7 +42,7 @@ def atari_learn(env,
                                     ],
                                     outside_value=5e-5 * lr_multiplier)
     optimizer = dqn.OptimizerSpec(
-        constructor=tf.train.MomentumOptimizer,
+        constructor=tf.train.AdamOptimizer,
         kwargs=dict(epsilon=1e-4),
         lr_schedule=lr_schedule
     )
@@ -52,14 +52,22 @@ def atari_learn(env,
         # which is different from the number of steps in the underlying env
         return get_wrapper_by_name(env, "Monitor").get_total_steps() >= num_timesteps
 
+
     exploration_schedule = PiecewiseSchedule(
         [
-            (0, 1.0),
-            (1e6, 0.1),
-            (num_iterations / 2, 0.01),
-        ], outside_value=0.01
+            (0, 0.5),
+            (1e6, 0.05),
+            (num_iterations / 2, 0.005),
+        ], outside_value=0.005
     )
+    '''
 
+    exploration_schedule = LinearSchedule(
+        num_timesteps,
+        1.0,
+        0.01
+    )
+    '''
     dqn.learn(
         env,
         q_func=atari_model,
@@ -67,6 +75,7 @@ def atari_learn(env,
         session=session,
         exploration=exploration_schedule,
         stopping_criterion=stopping_criterion,
+
         replay_buffer_size=1000000,
         batch_size=32,
         gamma=0.99,
