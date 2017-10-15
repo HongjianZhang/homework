@@ -24,6 +24,23 @@ def sample(env,
     """
     paths = []
     """ YOUR CODE HERE """
+    # want paths to be {'observations': observatiosn acr}
+    for _ in range(num_paths):
+        observations = []
+        actions = []
+        next_observations = []
+        rewards = []
+        observation = env.reset()
+        for _ in range(horizon):
+            action = controller.get_action(state)
+            observations.append(observation)
+            observation, reward, done, info = env.step(action)
+            next_observations.append(observation)
+            actions.append(action)
+            rewards.append(reward)
+        path = {'observations': np.array(observations), 'actions': np.array(actions),
+                'next_observations': np.array(next_observations), 'rewards': np.array(rewards)}
+        paths.append(path)
 
     return paths
 
@@ -38,6 +55,7 @@ def compute_normalization(data):
     """
 
     """ YOUR CODE HERE """
+
     return mean_obs, std_obs, mean_deltas, std_deltas, mean_action, std_action
 
 
@@ -112,8 +130,9 @@ def train(env,
     random_controller = RandomController(env)
 
     """ YOUR CODE HERE """
-
-
+    paths = sample(env, random_controller, num_paths_random, env_horizon)
+    costs = np.array([path_cost(cost_fn, path) for path in paths])
+    returns = np.array([np.sum(path[rewards]) for path in paths])
     #========================================================
     # 
     # The random data will be used to get statistics (mean
@@ -122,7 +141,10 @@ def train(env,
     # for normalizing inputs and denormalizing outputs
     # from the dynamics network. 
     # 
-    normalization = """ YOUR CODE HERE """
+    normalization = compute_normalization(random_paths)
+    # TODO: normalize
+    # for path in paths:
+    #     path['observations'] = np.divide((path['observations'] - mean_obs), std_obs)
 
 
     #========================================================
@@ -163,8 +185,11 @@ def train(env,
     # 
     for itr in range(onpol_iters):
         """ YOUR CODE HERE """
-
-
+        dyn_model.fit(paths)
+        paths_onpol = sample(env, mpc_controller, num_paths_onpol, env_horizon)
+        paths.append(paths_onpol)
+        costs = np.append(costs, np.array([path_cost(cost_fn, path) for path in paths_onpol]))
+        returns = np.append(returns, np.array([np.sum(path[rewards]) for path in paths_onpol]))
 
         # LOGGING
         # Statistics for performance of MPC policy using
