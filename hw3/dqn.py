@@ -340,12 +340,4 @@ def learn(env,
             print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
             learning_rates.append(optimizer_spec.lr_schedule.value(t))
             sys.stdout.flush()
-        if t % SAVE_EVERY_N_STEPS == 0 and model_initialized:
-            print mean_rewards
-            print best_means
-            training_log = ({'t_log': t_steps, 'mean_reward_log': mean_rewards, 'best_mean_log': best_means, 'episodes_log': episode_log,
-                'exploration_log': explorations, 'learning_rate_log': learning_rates})
-            output_file_name = 'saved_data_not_explore/atari'+'_' + str(t) + '_data.pkl'
-            with open(output_file_name, 'wb') as f:
-                pickle.dump(training_log, f)
 

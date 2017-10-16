@@ -36,30 +36,27 @@ class MPCcontroller(Controller):
 		self.cost_fn = cost_fn
 		self.num_simulated_paths = num_simulated_paths
 
+	def sample_actions(self):
+		return np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high,
+			size=(self.horizon, self.num_simulated_paths, self.env.action_space.shape[0]))
+
 	def get_action(self, state):
 		""" YOUR CODE HERE """
 		""" Note: be careful to batch your simulations through the model for speed """
 		# Sample num_simulated_paths number of length horizon actions from env
-			# Q: how do you sample actions without states
-		# TODO: write code to sample actions
 		actions = self.sample_actions() # shape: [horizon, num_simulated_paths, ac_dim]
+		obs_dim = state.shape[0]
 		# broadcast s to be [num_simulated_paths, observation_dim]
-		state = env.reset()
-		states = np.tile(initial_state, [self.num_simulated_paths, 1])
-		paths = [for _ in range(self.num_simulated_paths)]
-		observations_h = []
-		next_observations_h = []
+		observations = np.broadcast_to(state, (self.num_simulated_paths, obs_dim))
+		observations_h = [observations]
 		# Use dynamics model to generate s, s_0 is the initial states
-		for i in range(horizon):
-			observations_h.append(states)
-			next_states = self.dyn_model.predict(states, actions[i])
-			next_observations_h.append(next_states)
-			states = next_states
+		for i in range(self.horizon):
+			observations = self.dyn_model.predict(observations, actions[i])
+			observations_h.append(observations)
 
 		# evaluate cost for each imaginary rollouts using cost_fn
 		observations_h = np.array(observations_h) # shape: [horizon, num_simulated_paths, obs/ac_dim]
-		next_observations_h = np.array(next_observations_h)
-		costs = self.cost_fn(observations_h, actions, next_observations_h) # shape: [num_simulated_paths]	
+		costs = trajectory_cost_fn(self.cost_fn, observations_h[:-1], actions, observations_h[1:]) # shape: [num_simulated_paths]	
 
 		# Pick the a_0 with the least cost
 		best_trj = np.argmin(costs)

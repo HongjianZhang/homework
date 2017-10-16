@@ -1,0 +1,42 @@
+import pickle
+import numpy as np
+import matplotlib.pyplot as plt
+
+regular = pickle.load(open("saved_data_adam/atari_6000000_data.pkl"))
+no_explore = pickle.load(open("saved_data_not_explore/atari_5400000_data.pkl"))
+explore = pickle.load(open("saved_data_explore/atari_6200000_data.pkl"))
+linear = pickle.load(open("saved_data_linear_explore/atari_5800000_data.pkl"))
+
+# fig = plt.gcf()
+# fig.set_size_inches(18.5, 8.5)
+# plt.plot(regular["t_log"], regular["mean_reward_log"], label="Default")
+# plt.plot(no_explore["t_log"], no_explore["mean_reward_log"], label="Less Exploration")
+# plt.plot(explore["t_log"], explore["mean_reward_log"], label="More Exploration")
+# plt.plot(linear["t_log"], linear["mean_reward_log"], label="Linear Exploration")
+# plt.legend(loc=2, prop={'size': 12}, shadow=False, fancybox=True)
+# plt.xlabel('time steps')
+# plt.ylabel('mean reward')
+# plt.show()
+# fig.savefig('mean_reward.png', dpi=100)
+
+# fig = plt.gcf()
+# fig.set_size_inches(18.5, 8.5)
+# plt.plot(regular["t_log"], regular["best_mean_log"], label="Default")
+# plt.plot(no_explore["t_log"], no_explore["best_mean_log"], label="Less Exploration")
+# plt.plot(explore["t_log"], explore["best_mean_log"], label="More Exploration")
+# plt.plot(linear["t_log"], linear["best_mean_log"], label="Linear Exploration")
+# plt.legend(loc=2, prop={'size': 12}, shadow=False, fancybox=True)
+# plt.xlabel('time steps')
+# plt.ylabel('best mean')
+# plt.show()
+# fig.savefig('best_mean.png', dpi=100)
+
+fig = plt.gcf()
+fig.set_size_inches(18.5, 8.5)
+plt.plot(regular["t_log"], regular["mean_reward_log"], label="Mean Reward")
+plt.plot(regular["t_log"], regular["best_mean_log"], label="Best Mean")
+plt.legend(loc=2, prop={'size': 12}, shadow=False, fancybox=True)
+plt.xlabel('time steps')
+plt.ylabel('reward')
+plt.show()
+fig.savefig('default.png', dpi=100)

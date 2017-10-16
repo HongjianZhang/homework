@@ -10,6 +10,7 @@ import os
 import copy
 import matplotlib.pyplot as plt
 from cheetah_env import HalfCheetahEnvNew
+import pickle
 
 def sample(env, 
            controller, 
@@ -24,39 +25,72 @@ def sample(env,
     """
     paths = []
     """ YOUR CODE HERE """
-    # want paths to be {'observations': observatiosn acr}
-    for _ in range(num_paths):
-        observations = []
+    observations_h = []
+    actions_h = []
+    next_observations_h = []
+    rewards_h = []
+    for i in range(num_paths): 
+        print(i)
+        observation = env.reset() 
+        observations = [observation] 
         actions = []
-        next_observations = []
         rewards = []
-        observation = env.reset()
-        for _ in range(horizon):
-            action = controller.get_action(state)
-            observations.append(observation)
+        for i in range(horizon):
+            action = controller.get_action(observation)
             observation, reward, done, info = env.step(action)
-            next_observations.append(observation)
+            observations.append(observation)
             actions.append(action)
             rewards.append(reward)
-        path = {'observations': np.array(observations), 'actions': np.array(actions),
-                'next_observations': np.array(next_observations), 'rewards': np.array(rewards)}
+        path = {'observations': np.array(observations[:-1]),
+            'actions': np.array(actions),
+            'next_observations': np.array(observations[1:]),
+            'rewards': np.array(rewards)}
         paths.append(path)
 
+    # paths: {'observations': [horizon, num_paths, obs/ac/rew_dim], ...}
+    # import pdb; pdb.set_trace()
     return paths
 
 # Utility to compute cost a path for a given cost function
 def path_cost(cost_fn, path):
     return trajectory_cost_fn(cost_fn, path['observations'], path['actions'], path['next_observations'])
 
+# def append_paths(paths, new_paths):
+#     paths['observations'] = np.append(paths['observations'], new_paths['observations'], axis=1)
+#     paths['actions'] = np.append(paths['actions'], new_paths['actions'], axis=1)
+#     paths['next_observations'] = np.append(paths['next_observations'], new_paths['next_observations'], axis=1)
+#     paths['rewards'] = np.append(paths['rewards'], new_paths['rewards'], axis=1)
+
 def compute_normalization(data):
     """
     Write a function to take in a dataset and compute the means, and stds.
     Return 6 elements: mean of s_t, std of s_t, mean of (s_t+1 - s_t), std of (s_t+1 - s_t), mean of actions, std of actions
     """
-
     """ YOUR CODE HERE """
+    # data has shape [horizon, num_paths, obs/ac_dim]
+    obs, ac, next_obs = data
+    mean_obs, std_obs = np.mean(obs, axis = 0), np.std(obs, axis = 0)
+    mean_action, std_action = np.mean(ac, axis = 0), np.std(ac, axis = 0)
+    deltas = next_obs - obs
+    mean_deltas, std_deltas = np.mean(deltas, axis = 0), np.std(deltas, axis = 0)
+    return mean_obs, std_obs, mean_action, std_action, mean_deltas, std_deltas
 
-    return mean_obs, std_obs, mean_deltas, std_deltas, mean_action, std_action
+def get_data_from_paths(paths):
+    observations = []
+    actions = []
+    next_observations = []
+
+    for path in paths:
+        observations.append(path['observations'])
+        actions.append(path['actions'])
+        next_observations.append(path['next_observations'])
+    obs = np.array(observations)
+    ac = np.array(actions)
+    next_obs = np.array(next_observations)
+    obs = obs.reshape(obs.shape[0] * obs.shape[1], obs.shape[2])
+    ac = ac.reshape(ac.shape[0] * ac.shape[1], ac.shape[2])
+    next_obs = next_obs.reshape(next_obs.shape[0] * next_obs.shape[1], next_obs.shape[2])
+    return obs, ac, next_obs
 
 
 def plot_comparison(env, dyn_model):
@@ -65,6 +99,12 @@ def plot_comparison(env, dyn_model):
     """
     """ YOUR CODE HERE """
     pass
+    # state = np.env.reset()
+    # states = np.broadcast_to(state, (1000, state.shape[0]))
+    # actions = np.random.uniform(low=env.action_space.low, high=env.action_space.high,
+    #         size=(1000, self.env.action_space.shape[0]))
+    # predicted_states = dyn_model.predict(states, actions)
+    # actual_states = 
 
 def train(env, 
          cost_fn,
@@ -132,7 +172,7 @@ def train(env,
     """ YOUR CODE HERE """
     paths = sample(env, random_controller, num_paths_random, env_horizon)
     costs = np.array([path_cost(cost_fn, path) for path in paths])
-    returns = np.array([np.sum(path[rewards]) for path in paths])
+    returns = np.array([np.sum(path['rewards']) for path in paths])
     #========================================================
     # 
     # The random data will be used to get statistics (mean
@@ -141,8 +181,8 @@ def train(env,
     # for normalizing inputs and denormalizing outputs
     # from the dynamics network. 
     # 
-    normalization = compute_normalization(random_paths)
-    # TODO: normalize
+    data = get_data_from_paths(paths)
+    normalization = compute_normalization(data)
     # for path in paths:
     #     path['observations'] = np.divide((path['observations'] - mean_obs), std_obs)
 
@@ -183,14 +223,16 @@ def train(env,
     # Take multiple iterations of onpolicy aggregation at each iteration refitting the dynamics model to current dataset and then taking onpolicy samples and aggregating to the dataset. 
     # Note: You don't need to use a mixing ratio in this assignment for new and old data as described in https://arxiv.org/abs/1708.02596
     # 
+    avg_returns = []
     for itr in range(onpol_iters):
         """ YOUR CODE HERE """
-        dyn_model.fit(paths)
+        data = get_data_from_paths(paths)
+        dyn_model.fit(data)
         paths_onpol = sample(env, mpc_controller, num_paths_onpol, env_horizon)
-        paths.append(paths_onpol)
-        costs = np.append(costs, np.array([path_cost(cost_fn, path) for path in paths_onpol]))
-        returns = np.append(returns, np.array([np.sum(path[rewards]) for path in paths_onpol]))
-
+        paths += paths_onpol
+        costs = np.array([path_cost(cost_fn, path) for path in paths])
+        returns = np.array([np.sum(path['rewards']) for path in paths])
+        avg_returns.append(np.mean(returns))
         # LOGGING
         # Statistics for performance of MPC policy using
         # our learned dynamics model
@@ -207,6 +249,7 @@ def train(env,
         logz.log_tabular('MaximumReturn', np.max(returns))
 
         logz.dump_tabular()
+    pickle.dump(avg_returns, open("avg_returns.p", "wb"))
 
 def main():
 
@@ -219,7 +262,7 @@ def main():
     parser.add_argument('--render', action='store_true')
     # Training args
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-3)
-    parser.add_argument('--onpol_iters', '-n', type=int, default=1)
+    parser.add_argument('--onpol_iters', '-n', type=int, default=3)
     parser.add_argument('--dyn_iters', '-nd', type=int, default=60)
     parser.add_argument('--batch_size', '-b', type=int, default=512)
     # Data collection
