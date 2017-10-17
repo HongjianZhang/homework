@@ -1,4 +1,4 @@
 all:
-	clang -O2 -std=c++11 -I../include simulate.cpp -lstdc++ ../bin/libmujoco131.dylib ../bin/libglfw.3.dylib -o ../bin/simulate
-	clang -O2 -std=c++11 -I../include test.cpp -lstdc++ ../bin/libmujoco131.dylib -o ../bin/test
-	clang -O2 -std=c++11 -I../include compile.cpp -lstdc++ ../bin/libmujoco131.dylib -o ../bin/compile
+	g++ -O2 -I../include simulate.cpp -std=c++11 ../bin/libmujoco131.so ../bin/libglfw.so.3 -o ../bin/simulate
+	g++ -O2 -I../include test.cpp -std=c++11 ../bin/libmujoco131.so -o ../bin/test
+	g++ -O2 -I../include compile.cpp -std=c++11 ../bin/libmujoco131.so -o ../bin/compile
