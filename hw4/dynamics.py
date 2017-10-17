@@ -51,14 +51,14 @@ class NNDynamicsModel():
 
     def normalize(self, obs, ac, delta):
         # takes in batches of obs, ac, delta, and returns normalized obs, acs, and deltas:
-        epsilon = 1e-10
+        epsilon = 1e-15
         normalized_obs = np.divide(obs - self.mean_obs, self.std_obs + epsilon)
         normalized_ac = np.divide(ac - self.mean_ac, self.std_ac + epsilon)
         normalized_delta = np.divide(delta - self.mean_deltas, self.std_deltas + epsilon)
         return normalized_obs, normalized_ac, normalized_delta
 
     def normalize_inference(self, obs, ac):
-        epsilon = 1e-10
+        epsilon = 1e-15
         normalized_obs = np.divide(obs - self.mean_obs, self.std_obs + epsilon)
         normalized_ac = np.divide(ac - self.mean_ac, self.std_ac + epsilon)
         return normalized_obs, normalized_ac
@@ -73,25 +73,23 @@ class NNDynamicsModel():
         """YOUR CODE HERE """
         # TODO: get batch & figure out what is input placeholder look like, normalize
         # data = {'observations': [horizon, num_paths, obs/ac_dim]}
-        cur_batch = 0
+        
         # flatten paths data across horizon and number of paths
         train_obs, train_ac, train_next_obs = data
         for _ in range(self.iterations):
-            if cur_batch > train_obs.shape[0]:
-                cur_batch = 0
+            for cur_batch in range(train_obs.shape[0] / self.batch_size):
             # shape: [batch_size, obs/ac_dim]
-            obs_batch = train_obs[cur_batch : cur_batch+self.batch_size]
-            next_obs_batch = train_next_obs[cur_batch : cur_batch+self.batch_size]
-            ac_batch = train_ac[cur_batch : cur_batch+self.batch_size]
-            delta_batch = next_obs_batch - obs_batch
-            cur_batch += self.batch_size
-            
-            obs_batch, ac_batch, delta_batch = self.normalize(obs_batch, ac_batch, delta_batch)
-            feed_dict = {
-                self.input_ph: np.append(obs_batch, ac_batch, axis = 1),
-                self.delta_ph: delta_batch
-            }
-            _, loss = self.sess.run([self.train_op, self.loss], feed_dict=feed_dict)
+                obs_batch = train_obs[cur_batch * self.batch_size : (cur_batch+1) * self.batch_size]
+                next_obs_batch = train_next_obs[cur_batch * self.batch_size : (cur_batch+1) * self.batch_size]
+                ac_batch = train_ac[cur_batch * self.batch_size : (cur_batch+1) * self.batch_size]
+                delta_batch = next_obs_batch - obs_batch
+                
+                obs_batch, ac_batch, delta_batch = self.normalize(obs_batch, ac_batch, delta_batch)
+                feed_dict = {
+                    self.input_ph: np.append(obs_batch, ac_batch, axis = 1),
+                    self.delta_ph: delta_batch
+                }
+                _, loss = self.sess.run([self.train_op, self.loss], feed_dict=feed_dict)
 
 
     def predict(self, states, actions):

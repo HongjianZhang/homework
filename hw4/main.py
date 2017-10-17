@@ -25,10 +25,6 @@ def sample(env,
     """
     paths = []
     """ YOUR CODE HERE """
-    observations_h = []
-    actions_h = []
-    next_observations_h = []
-    rewards_h = []
     for i in range(num_paths): 
         print(i)
         observation = env.reset() 
@@ -98,13 +94,17 @@ def plot_comparison(env, dyn_model):
     Write a function to generate plots comparing the behavior of the model predictions for each element of the state to the actual ground truth, using randomly sampled actions. 
     """
     """ YOUR CODE HERE """
-    pass
-    # state = np.env.reset()
-    # states = np.broadcast_to(state, (1000, state.shape[0]))
-    # actions = np.random.uniform(low=env.action_space.low, high=env.action_space.high,
-    #         size=(1000, self.env.action_space.shape[0]))
-    # predicted_states = dyn_model.predict(states, actions)
-    # actual_states = 
+    states = [env.reset()]
+    predicted_states = [env.reset()]
+    for _ in range(100):
+        action = env.action_space.sample()
+        state, reward, done, info = env.step(action)
+        states.append(state)
+        predicted_states.append(dyn_model.predict(state, action))
+    states = np.array(states)
+    predicted_states = np.array(predicted_states)
+
+    
 
 def train(env, 
          cost_fn,
@@ -229,10 +229,6 @@ def train(env,
         data = get_data_from_paths(paths)
         dyn_model.fit(data)
         paths_onpol = sample(env, mpc_controller, num_paths_onpol, env_horizon)
-        paths += paths_onpol
-        costs = np.array([path_cost(cost_fn, path) for path in paths])
-        returns = np.array([np.sum(path['rewards']) for path in paths])
-        avg_returns.append(np.mean(returns))
         # LOGGING
         # Statistics for performance of MPC policy using
         # our learned dynamics model
@@ -249,6 +245,11 @@ def train(env,
         logz.log_tabular('MaximumReturn', np.max(returns))
 
         logz.dump_tabular()
+        
+        paths += paths_onpol
+        costs = np.array([path_cost(cost_fn, path) for path in paths])
+        returns = np.array([np.sum(path['rewards']) for path in paths])
+        avg_returns.append(np.mean(returns))
     pickle.dump(avg_returns, open("avg_returns.p", "wb"))
 
 def main():
@@ -262,7 +263,7 @@ def main():
     parser.add_argument('--render', action='store_true')
     # Training args
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-3)
-    parser.add_argument('--onpol_iters', '-n', type=int, default=3)
+    parser.add_argument('--onpol_iters', '-n', type=int, default=15)
     parser.add_argument('--dyn_iters', '-nd', type=int, default=60)
     parser.add_argument('--batch_size', '-b', type=int, default=512)
     # Data collection
