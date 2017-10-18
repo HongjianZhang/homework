@@ -77,6 +77,9 @@ class NNDynamicsModel():
         # flatten paths data across horizon and number of paths
         train_obs, train_ac, train_next_obs = data
         for _ in range(self.iterations):
+	    indices = np.arange(train_obs.shape[0])
+	    np.random.shuffle(indices) 
+	    train_obs, train_ac, train_next_obs = train_obs[indices], train_ac[indices], train_next_obs[indices]
             for cur_batch in range(train_obs.shape[0] / self.batch_size):
             # shape: [batch_size, obs/ac_dim]
                 obs_batch = train_obs[cur_batch * self.batch_size : (cur_batch+1) * self.batch_size]

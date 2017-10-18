@@ -101,9 +101,6 @@ def plot_comparison(env, dyn_model):
         state, reward, done, info = env.step(action)
         states.append(state)
         predicted_states.append(dyn_model.predict(state, action))
-    states = np.array(states)
-    predicted_states = np.array(predicted_states)
-
     
 
 def train(env, 
@@ -224,11 +221,17 @@ def train(env,
     # Note: You don't need to use a mixing ratio in this assignment for new and old data as described in https://arxiv.org/abs/1708.02596
     # 
     avg_returns = []
-    for itr in range(onpol_iters):
+    for itr in range(onpol_iters+1):
         """ YOUR CODE HERE """
         data = get_data_from_paths(paths)
         dyn_model.fit(data)
-        paths_onpol = sample(env, mpc_controller, num_paths_onpol, env_horizon)
+        paths_onpol = sample(env, mpc_controller, num_paths_onpol, env_horizon) 
+	paths += paths_onpol
+        costs = np.array([path_cost(cost_fn, path) for path in paths])
+        returns = np.array([np.sum(path['rewards']) for path in paths])
+        avg_returns.append(np.mean(returns))
+
+
         # LOGGING
         # Statistics for performance of MPC policy using
         # our learned dynamics model
@@ -245,11 +248,6 @@ def train(env,
         logz.log_tabular('MaximumReturn', np.max(returns))
 
         logz.dump_tabular()
-        
-        paths += paths_onpol
-        costs = np.array([path_cost(cost_fn, path) for path in paths])
-        returns = np.array([np.sum(path['rewards']) for path in paths])
-        avg_returns.append(np.mean(returns))
     pickle.dump(avg_returns, open("avg_returns.p", "wb"))
 
 def main():
